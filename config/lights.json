@@ -1,0 +1,10 @@
+{
+  "_comment": "UI light number -> Bluetooth-mesh element address. UI light# = row*5 + col + 1 (5 columns). Two UI numbers sharing one address (e.g. 7 & 8 = 62, 27 & 28 = 48) are the same physical fixture and switch together. Light 18 is omitted because its element address is unknown; it is left permanently ON manually. Edit this file (no code change) if fixtures are rewired.",
+  "1": 59, "2": 60, "3": 44, "4": 87, "5": 88,
+  "6": 61, "7": 62, "8": 62, "9": 89, "10": 90,
+  "11": 63, "12": 64, "13": 41, "14": 91, "15": 92,
+  "16": 65, "17": 51, "19": 93, "20": 37,
+  "21": 49, "22": 50, "23": 42, "24": 35, "25": 36,
+  "26": 47, "27": 48, "28": 48, "29": 33, "30": 34,
+  "31": 45, "32": 46, "33": 38, "34": 31, "35": 32
+}

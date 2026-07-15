@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Smart Lighting Control</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #2a3a50;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      color: #ccc;
+      min-height: 100vh;
+    }
+
+    .header {
+      width: 100%;
+      max-width: 750px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #4a6a8a;
+    }
+
+    .header h1 {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: #8aaabb;
+    }
+
+    .status { font-size: 11px; color: #5a7a9a; letter-spacing: 1px; }
+    .status.on { color: #ffe844; }
+
+    #building {
+      display: flex;
+      flex-direction: column;
+      border: 1px solid #4a6a8a;
+      overflow: hidden;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.4);
+      border-radius: 4px;
+    }
+
+    .wall-label {
+      background: #1e2e42;
+      text-align: center;
+      font-size: 9px;
+      letter-spacing: 4px;
+      color: #5a7a9a;
+      padding: 5px;
+      text-transform: uppercase;
+      border-bottom: 1px solid #4a6a8a;
+    }
+
+    canvas { display: block; }
+
+    .rooms {
+      display: flex;
+      height: 88px;
+      border-top: 2px solid #4a6a8a;
+    }
+
+    .room {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      border-right: 1px solid #4a6a8a;
+      background: #1e2e42;
+      overflow: hidden;
+      cursor: default;
+    }
+
+    .room:last-child { border-right: none; }
+
+    .room::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(120,180,255,0.4), transparent);
+    }
+
+    .room::after {
+      content: '';
+      position: absolute;
+      top: 10px; left: 14px; right: 14px; bottom: 10px;
+      border: 1px solid rgba(120,180,255,0.15);
+      border-radius: 2px;
+      background: rgba(120,180,255,0.04);
+    }
+
+    .room-label { font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: #6a8aaa; z-index: 1; }
+    .room-dot { width: 4px; height: 4px; border-radius: 50%; margin-top: 6px; z-index: 1; }
+    .room-1 .room-dot { background: #2a7a4a; box-shadow: 0 0 8px #2a7a4a; }
+    .room-2 .room-dot { background: #2a4a8a; box-shadow: 0 0 8px #2a4a8a; }
+    .room-3 .room-dot { background: #7a2a4a; box-shadow: 0 0 8px #7a2a4a; }
+
+    .entrance {
+      width: 110px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #182030;
+      border-left: 1px solid #4a6a8a;
+    }
+
+    .entrance-label { font-size: 9px; letter-spacing: 3px; text-transform: uppercase; color: #5a7a9a; }
+    .entrance-arrow { font-size: 18px; color: #4a6a8a; margin-top: 4px; }
+
+    .info-bar {
+      width: 100%;
+      max-width: 750px;
+      display: flex;
+      justify-content: space-between;
+      margin-top: 12px;
+      font-size: 10px;
+      color: #5a7a9a;
+      letter-spacing: 1px;
+    }
+
+    .info-bar span.highlight { color: #ffe844; }
+
+    .person-count {
+      font-size: 10px;
+      color: #5a7a9a;
+      letter-spacing: 1px;
+    }
+
+    .cam-panel {
+      width: 100%;
+      max-width: 750px;
+      margin-top: 16px;
+      background: #1e2e42;
+      border: 1px solid #4a6a8a;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .cam-tabs {
+      display: flex;
+      border-bottom: 1px solid #4a6a8a;
+    }
+
+    .cam-tabs button {
+      flex: 1;
+      background: none;
+      border: none;
+      border-right: 1px solid #4a6a8a;
+      color: #5a7a9a;
+      font-size: 10px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      padding: 7px 0;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .cam-tabs button:last-child { border-right: none; }
+    .cam-tabs button:hover { background: #2a3e58; color: #aaccdd; }
+    .cam-tabs button.active { background: #2a3e58; color: #ffe844; }
+
+    #camFeed {
+      display: block;
+      width: 100%;
+      aspect-ratio: 16/9;
+      object-fit: contain;
+      background: #111;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h1>Smart Lighting Control</h1>
+    <div style="display:flex; gap:12px; align-items:center;">
+      <span class="person-count" id="personCount">● 0 PERSONS</span>
+      <div class="status" id="statusText">● ALL OFF</div>
+      <button id="calibBtn" onclick="toggleCalib()"
+        style="background:none;border:1px solid #4a6a8a;color:#8aaabb;font-size:10px;
+               letter-spacing:1px;padding:4px 10px;border-radius:3px;cursor:pointer;">
+        CALIBRATE</button>
+      <button id="undoBtn" onclick="undoCalib()"
+        style="display:none;background:none;border:1px solid #7a4a4a;color:#cc8888;
+               font-size:10px;letter-spacing:1px;padding:4px 10px;border-radius:3px;cursor:pointer;">
+        UNDO</button>
+      <span style="width:1px;height:18px;background:#4a6a8a;"></span>
+      <button onclick="setLights('on')"
+        style="background:none;border:1px solid #5a8a5a;color:#9ccc9c;font-size:10px;
+               letter-spacing:1px;padding:4px 10px;border-radius:3px;cursor:pointer;">
+        ALL ON</button>
+      <button onclick="setLights('off')"
+        style="background:none;border:1px solid #8a5a5a;color:#cc9c9c;font-size:10px;
+               letter-spacing:1px;padding:4px 10px;border-radius:3px;cursor:pointer;">
+        ALL OFF</button>
+      <button id="autoBtn" onclick="setLights('auto')"
+        style="background:none;border:1px solid #4a6a8a;color:#8aaabb;font-size:10px;
+               letter-spacing:1px;padding:4px 10px;border-radius:3px;cursor:pointer;">
+        AUTO</button>
+    </div>
+  </div>
+
+  <div id="building">
+    <div class="wall-label">— north wall —</div>
+    <canvas id="canvas"></canvas>
+    <div class="rooms">
+      <div class="room room-1">
+        <div class="room-label">Cabin 01</div>
+        <div class="room-dot"></div>
+      </div>
+      <div class="room room-2">
+        <div class="room-label">Cabin 02</div>
+        <div class="room-dot"></div>
+      </div>
+      <div class="room room-3">
+        <div class="room-label">Cabin 03</div>
+        <div class="room-dot"></div>
+      </div>
+      <div class="entrance">
+        <div class="entrance-label">Entrance</div>
+        <div class="entrance-arrow">↓</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="info-bar">
+    <span>35 LIGHTS · 4 CAMERAS · 22×28 GRID</span>
+    <span id="activeCount">0 ACTIVE</span>
+  </div>
+
+  <div class="cam-panel">
+    <div class="cam-tabs">
+      <button class="active" onclick="switchCam('cam1', this)">CAM 1 — 203</button>
+      <button onclick="switchCam('cam2', this)">CAM 2 — 211</button>
+      <button onclick="switchCam('cam3', this)">CAM 3 — 210</button>
+      <button onclick="switchCam('cam4', this)">CAM 4 — 204</button>
+    </div>
+    <img id="camFeed" alt="camera feed">
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    // Camera MJPEG feeds are served by detection.py on port 8765 of the SAME
+    // host that serves this page — works over the LAN, not just localhost.
+    const MJPEG_BASE = location.protocol + '//' + location.hostname + ':8765';
+    document.getElementById('camFeed').src = MJPEG_BASE + '/stream/cam1';
+
+    const TILE_COLS = 22;
+    const TILE_ROWS = 28;
+    const TILE_SIZE = 28;
+
+    const CANVAS_W = TILE_COLS * TILE_SIZE;
+    const CANVAS_H = TILE_ROWS * TILE_SIZE;
+
+    const LIGHT_COLS = [2, 7, 11, 15, 19];
+    const LIGHT_ROWS = [3, 7, 11, 15, 19, 23, 27];
+    // [row, col, label] — marker position on the map + its camera number
+    const CAMERAS = [
+      [0,  0,  'C3'],   // top-left,     near light 1
+      [0,  21, 'C1'],   // top-right,    near light 5
+      [27, 0,  'C2'],   // bottom-left,  near light 31
+      [27, 21, 'C4'],   // bottom-right, near light 35
+    ];
+
+    const lightStates = [];
+    for (let r = 0; r < LIGHT_ROWS.length; r++) {
+      lightStates[r] = [];
+      for (let c = 0; c < LIGHT_COLS.length; c++) {
+        lightStates[r][c] = false;
+      }
+    }
+
+    // ── person positions ──────────────────────────────────
+    let personPositions = [];  // [{tile_col, tile_row, cam, foot_x, foot_y, id}, ...]
+
+    // ── drag-to-correct calibration state ─────────────────
+    let calibMode = false;
+    let dragDot   = null;      // {cam, foot_x, foot_y, startX, startY} while dragging
+    let dragPos   = { x: 0, y: 0 };
+
+    const canvas = document.getElementById('canvas');
+    canvas.width = CANVAS_W;
+    canvas.height = CANVAS_H;
+    const ctx = canvas.getContext('2d');
+
+    function nearestLight(tileR, tileC) {
+      let bestRi = 0, bestCi = 0, bestDist = Infinity;
+      for (let ri = 0; ri < LIGHT_ROWS.length; ri++) {
+        for (let ci = 0; ci < LIGHT_COLS.length; ci++) {
+          const dr = tileR - LIGHT_ROWS[ri];
+          const dc = tileC - LIGHT_COLS[ci];
+          const dist = dr*dr + dc*dc;
+          if (dist < bestDist) {
+            bestDist = dist;
+            bestRi = ri;
+            bestCi = ci;
+          }
+        }
+      }
+      return [bestRi, bestCi];
+    }
+
+    const zoneColors = [
+      '#3e5570', '#3c5268', '#405870', '#3d546e',
+      '#3f566f', '#3b516a', '#415970', '#3e546e',
+      '#3c536c', '#405770', '#3d526e', '#3f5870',
+      '#3b546a', '#41566f', '#3e526c', '#3c5770',
+      '#405470', '#3d5870', '#3f526e', '#3b566a',
+      '#41576f', '#3e506c', '#3c5670', '#405370',
+      '#3d546e', '#3f576f', '#3b526a', '#415870',
+      '#3e546c', '#3c5070', '#405670', '#3d5270',
+      '#3f546f', '#3b5770', '#415068'
+    ];
+
+    function drawRoom() {
+      ctx.fillStyle = '#3a5068';
+      ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+
+      for (let r = 0; r < TILE_ROWS; r++) {
+        for (let c = 0; c < TILE_COLS; c++) {
+          const [ri, ci] = nearestLight(r, c);
+          const zoneIndex = ri * LIGHT_COLS.length + ci;
+          const isLightTile = LIGHT_ROWS.includes(r) && LIGHT_COLS.includes(c);
+          if (!isLightTile) {
+            ctx.fillStyle = zoneColors[zoneIndex % zoneColors.length];
+            ctx.fillRect(c*TILE_SIZE+1, r*TILE_SIZE+1, TILE_SIZE-2, TILE_SIZE-2);
+          }
+        }
+      }
+
+      ctx.strokeStyle = '#5a7a9a';
+      ctx.lineWidth = 1;
+      for (let r = 0; r <= TILE_ROWS; r++) {
+        ctx.beginPath();
+        ctx.moveTo(0, r*TILE_SIZE);
+        ctx.lineTo(CANVAS_W, r*TILE_SIZE);
+        ctx.stroke();
+      }
+      for (let c = 0; c <= TILE_COLS; c++) {
+        ctx.beginPath();
+        ctx.moveTo(c*TILE_SIZE, 0);
+        ctx.lineTo(c*TILE_SIZE, CANVAS_H);
+        ctx.stroke();
+      }
+
+      for (let ri = 0; ri < LIGHT_ROWS.length; ri++) {
+        for (let ci = 0; ci < LIGHT_COLS.length; ci++) {
+          const tileR = LIGHT_ROWS[ri];
+          const tileC = LIGHT_COLS[ci];
+          const on = lightStates[ri][ci];
+          const x = tileC * TILE_SIZE;
+          const y = tileR * TILE_SIZE;
+          const pad = 4;
+          const lightNum = ri * LIGHT_COLS.length + ci + 1;
+
+          if (on) {
+            const grd = ctx.createRadialGradient(
+              x+TILE_SIZE/2, y+TILE_SIZE/2, 0,
+              x+TILE_SIZE/2, y+TILE_SIZE/2, TILE_SIZE*2.5
+            );
+            grd.addColorStop(0, 'rgba(255,235,80,0.5)');
+            grd.addColorStop(1, 'rgba(255,235,80,0)');
+            ctx.fillStyle = grd;
+            ctx.fillRect(x-TILE_SIZE*2, y-TILE_SIZE*2, TILE_SIZE*5, TILE_SIZE*5);
+            ctx.fillStyle = '#ffe844';
+            ctx.shadowColor = '#ffe844';
+            ctx.shadowBlur = 14;
+            ctx.fillRect(x+pad, y+pad, TILE_SIZE-pad*2, TILE_SIZE-pad*2);
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = '#000';
+            ctx.font = 'bold 8px Segoe UI';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(`${lightNum}`, x+TILE_SIZE/2, y+TILE_SIZE/2);
+          } else {
+            ctx.fillStyle = '#2a3a20';
+            ctx.fillRect(x+pad, y+pad, TILE_SIZE-pad*2, TILE_SIZE-pad*2);
+            ctx.fillStyle = '#7a9aaa';
+            ctx.font = '7px Segoe UI';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(`${lightNum}`, x+TILE_SIZE/2, y+TILE_SIZE/2);
+          }
+        }
+      }
+
+      for (const [cr, cc, label] of CAMERAS) {
+        const x = cc*TILE_SIZE + TILE_SIZE/2;
+        const y = cr*TILE_SIZE + TILE_SIZE/2;
+        ctx.beginPath();
+        ctx.arc(x, y, TILE_SIZE/2-3, 0, Math.PI*2);
+        ctx.fillStyle = '#1a3060';
+        ctx.fill();
+        ctx.strokeStyle = '#4488ff';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.fillStyle = '#88bbff';
+        ctx.font = 'bold 9px Segoe UI';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(label, x, y);
+      }
+
+      // ── draw person dots ──────────────────────────────
+      for (const p of personPositions) {
+        const x     = p.tile_col * TILE_SIZE + TILE_SIZE / 2;
+        const y     = p.tile_row * TILE_SIZE + TILE_SIZE / 2;
+        const color = p.color || '#00dc64';
+        const pid   = p.id !== undefined ? p.id : '';
+
+        // glow ring (hex + '40' = 25% alpha)
+        ctx.beginPath();
+        ctx.arc(x, y, 10, 0, Math.PI * 2);
+        ctx.fillStyle = color + '40';
+        ctx.fill();
+
+        // solid dot
+        ctx.beginPath();
+        ctx.arc(x, y, 5, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 14;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        // white border
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        // person label — same ID shown on camera view
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 9px Segoe UI';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('P' + pid, x, y - 14);
+      }
+
+      // ── drag-calibration overlay ──────────────────────
+      if (dragDot) {
+        const sx = dragDot.startX, sy = dragDot.startY;
+        ctx.setLineDash([5, 4]);
+        ctx.strokeStyle = '#ffcc33';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        ctx.lineTo(dragPos.x, dragPos.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        // ghost target dot
+        ctx.beginPath();
+        ctx.arc(dragPos.x, dragPos.y, 7, 0, Math.PI * 2);
+        ctx.fillStyle = '#ffcc33';
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        const tc = Math.floor(dragPos.x / TILE_SIZE);
+        const tr = Math.floor(dragPos.y / TILE_SIZE);
+        ctx.fillStyle = '#ffcc33';
+        ctx.font = 'bold 9px Segoe UI';
+        ctx.textAlign = 'center';
+        ctx.fillText(`drop → (${tc},${tr})`, dragPos.x, dragPos.y - 12);
+      }
+
+      // ── update counts ─────────────────────────────────
+      let activeCount = 0;
+      for (let r = 0; r < LIGHT_ROWS.length; r++)
+        for (let c = 0; c < LIGHT_COLS.length; c++)
+          if (lightStates[r][c]) activeCount++;
+
+      document.getElementById('activeCount').textContent =
+        activeCount > 0 ? `${activeCount} ACTIVE` : '0 ACTIVE';
+      document.getElementById('activeCount').className =
+        activeCount > 0 ? 'highlight' : '';
+      document.getElementById('statusText').textContent =
+        activeCount > 0 ? `● ${activeCount} ON` : '● ALL OFF';
+      document.getElementById('statusText').className =
+        activeCount > 0 ? 'status on' : 'status';
+
+      const pc = document.getElementById('personCount');
+      pc.textContent = `● ${personPositions.length} PERSON${personPositions.length !== 1 ? 'S' : ''}`;
+      pc.style.color = personPositions.length > 0 ? '#00dc64' : '#5a7a9a';
+    }
+
+    drawRoom();
+
+    // ── floor point collection ────────────────────────────
+    const params = new URLSearchParams(window.location.search);
+    const currentCam = params.get('cam') || null;
+
+    if (currentCam) {
+      canvas.addEventListener('click', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const tile_col = Math.floor((e.clientX - rect.left) / TILE_SIZE);
+        const tile_row = Math.floor((e.clientY - rect.top) / TILE_SIZE);
+
+        const label = prompt(`tile (${tile_col}, ${tile_row}) — label?`);
+        if (!label) return;
+
+        fetch('/click', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ label, cam: currentCam, tile_col, tile_row })
+        });
+
+        const px = tile_col * TILE_SIZE + TILE_SIZE / 2;
+        const py = tile_row * TILE_SIZE + TILE_SIZE / 2;
+        const s = 6;
+        ctx.strokeStyle = '#ff4444';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(px-s, py-s); ctx.lineTo(px+s, py+s);
+        ctx.moveTo(px+s, py-s); ctx.lineTo(px-s, py+s);
+        ctx.stroke();
+        ctx.fillStyle = '#ff4444';
+        ctx.font = 'bold 9px Segoe UI';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(label, px, py - 14);
+      });
+    }
+
+    // ── master real-light control (ALL ON / ALL OFF / AUTO) ───────────────
+    function setLights(mode) {
+      fetch('/lights/all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode })
+      });
+      const note = document.getElementById('statusText');
+      if (mode === 'on')  note.textContent = '● ALL LIGHTS FORCED ON';
+      if (mode === 'off') note.textContent = '● ALL LIGHTS FORCED OFF';
+      if (mode === 'auto')note.textContent = '● AUTO (camera control)';
+    }
+
+    // ── drag-to-correct calibration ───────────────────────
+    function toggleCalib() {
+      calibMode = !calibMode;
+      const b = document.getElementById('calibBtn');
+      const u = document.getElementById('undoBtn');
+      b.style.color       = calibMode ? '#ffe844' : '#8aaabb';
+      b.style.borderColor = calibMode ? '#ffe844' : '#4a6a8a';
+      b.textContent       = calibMode ? 'CALIBRATING…' : 'CALIBRATE';
+      u.style.display     = calibMode ? 'inline-block' : 'none';
+      canvas.style.cursor = calibMode ? 'grab' : 'default';
+    }
+
+    function undoCalib() {
+      const cam = lastCalibCam || 'cam2';
+      fetch('/calibrate/undo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cam })
+      });
+    }
+    let lastCalibCam = null;
+
+    // map a mouse event to canvas internal pixel coords (handles CSS scaling)
+    function canvasXY(e) {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: (e.clientX - rect.left) * (canvas.width  / rect.width),
+        y: (e.clientY - rect.top)  * (canvas.height / rect.height)
+      };
+    }
+
+    function nearestDot(x, y) {
+      let best = null, bestD = 18 * 18;   // grab radius²
+      for (const p of personPositions) {
+        const dx = x - (p.tile_col * TILE_SIZE + TILE_SIZE / 2);
+        const dy = y - (p.tile_row * TILE_SIZE + TILE_SIZE / 2);
+        const d  = dx * dx + dy * dy;
+        if (d < bestD) { bestD = d; best = p; }
+      }
+      return best;
+    }
+
+    canvas.addEventListener('mousedown', (e) => {
+      if (!calibMode) return;
+      const { x, y } = canvasXY(e);
+      const p = nearestDot(x, y);
+      if (!p) return;
+      dragDot = {
+        cam: p.cam, foot_x: p.foot_x, foot_y: p.foot_y,
+        startX: p.tile_col * TILE_SIZE + TILE_SIZE / 2,
+        startY: p.tile_row * TILE_SIZE + TILE_SIZE / 2
+      };
+      dragPos = { x, y };
+      canvas.style.cursor = 'grabbing';
+      drawRoom();
+    });
+
+    canvas.addEventListener('mousemove', (e) => {
+      if (!dragDot) return;
+      dragPos = canvasXY(e);
+      drawRoom();
+    });
+
+    canvas.addEventListener('mouseup', (e) => {
+      if (!dragDot) return;
+      const { x, y } = canvasXY(e);
+      const tile_col = Math.floor(x / TILE_SIZE);
+      const tile_row = Math.floor(y / TILE_SIZE);
+      if (dragDot.foot_x === undefined || dragDot.foot_y === undefined) {
+        alert('This dot has no camera pixel info — restart detection.py to enable calibration.');
+      } else {
+        lastCalibCam = dragDot.cam;
+        fetch('/calibrate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            cam: dragDot.cam, foot_x: dragDot.foot_x, foot_y: dragDot.foot_y,
+            tile_col, tile_row
+          })
+        });
+        console.log(`calibrate ${dragDot.cam}: -> (${tile_col},${tile_row})`);
+      }
+      dragDot = null;
+      canvas.style.cursor = 'grab';
+      drawRoom();
+    });
+
+    // ── socket for live updates ───────────────────────────
+    const socket = io();
+
+    socket.on('light_update', ({ row, col, state }) => {
+      lightStates[row][col] = state;
+      drawRoom();
+    });
+
+    socket.on('person_update', (persons) => {
+      personPositions = persons;
+      drawRoom();
+    });
+
+    // ── camera feed switcher ──────────────────────────────
+    function switchCam(cam, btn) {
+      document.getElementById('camFeed').src = MJPEG_BASE + '/stream/' + cam;
+      document.querySelectorAll('.cam-tabs button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    }
+  </script>
+</body>
+</html>

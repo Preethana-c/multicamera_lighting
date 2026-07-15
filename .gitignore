@@ -1,0 +1,21 @@
+# Secrets — never commit real credentials
+.env
+
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# Node
+node_modules/
+
+# YOLO weights (large; download on deploy)
+*.pt
+
+# Runtime / scratch
+.msgseq
+*.log
+
+# OS
+Thumbs.db
+.DS_Store
